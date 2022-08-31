@@ -729,7 +729,7 @@ function cg_main_loop!(
     while true
         for (_, spinfo) in spinfos
             clear_before_colgen_iteration!(spinfo)
-        end
+        end   
 
         rm_time = @elapsed begin
             rm_input = OptimizationState(masterform, ip_primal_bound=get_ip_primal_bound(cg_optstate))
@@ -771,11 +771,6 @@ function cg_main_loop!(
             set_lp_primal_sol!(cg_optstate, rm_sol)
             lp_bound = get_lp_primal_bound(rm_optstate) + getvalue(partial_solution)
             set_lp_primal_bound!(cg_optstate, lp_bound)
-
-            dual_rm_sol = get_best_lp_dual_sol(rm_optstate)
-            if dual_rm_sol !== nothing
-                set_lp_dual_sol!(cg_optstate, dual_rm_sol)
-            end
 
             if phase != 1 && !contains(rm_sol, varid -> isanArtificialDuty(getduty(varid)))
                 proj_sol = proj_cols_on_rep(rm_sol, masterform)
@@ -897,7 +892,7 @@ function cg_main_loop!(
         essential_cuts_separated = false
     end
     return false, false
-end
+end 
 
 function print_colgen_statistics(
     env::Env, phase::Int64, iteration::Int64, smoothalpha::Float64, 
@@ -918,4 +913,215 @@ function print_colgen_statistics(
         phase_string, iteration, elapsed_optim_time(env), mst_time, sp_time, nb_new_col, smoothalpha, db, mlp, pb
     )
     return
+end
+
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+#########
+abstract type ColGenPhase end
+struct ColGenPhaseOne <: ColGenPhase end
+struct ColGenPhaseTwo <: ColGenPhase end
+struct ColGenMixedPhaseOneTwo <: ColGenPhase end
+
+abstract type ColGenStabMode end
+struct NoColGenStab <: ColGenStabMode end
+struct SmoothingColGenStab <: ColGenStabMode end
+
+
+abstract type MasterOptimMethod end
+struct RestrictedMasterLP <: MasterOptimMethod end
+
+function before_iteration!()
+    for (_, spinfo) in spinfos
+        clear_before_colgen_iteration!(spinfo)
+    end  
+end
+
+
+"""
+When we found a feasible integer solution to the master, we must
+ensure that this solution does not violate any essential cut.
+Therefore, the following method runs all the essential cut callbacks.
+It returns `true` if a violated essential cut has been found;
+`false` otherwise.
+"""
+function violates_essential_cut(essential_cut_gen_alg, master, env, rm_sol, partial_solution)
+    new_primal_sol = cat(rm_sol, partial_solution)
+    cutcb_input = CutCallbacksInput(new_primal_sol)
+    cutcb_output = run!(
+        essential_cut_gen_alg, env, master, cutcb_input
+    )
+    return cutcb_output.nb_cuts_added > 0
+end
+
+"""
+Returns an optimization state that contains at least a dual solution to the Danzig-Wolfe 
+restricted master problem.
+"""
+function solve_master!(master, optstate, ::RestrictedMasterLP, master_solve_alg, master_optimizer_id, env)
+    rm_time = @elapsed begin
+        rm_input = OptimizationState(master, ip_primal_bound=get_ip_primal_bound(optstate))
+        rm_optstate = run!(master_solve_alg, env, master, rm_input, master_optimizer_id)
+    end
+    return rm_optstate
+end
+
+function _isinteger(rm_lp_primal_sol)
+    return !contains(rm_lp_primal_sol, varid -> isanArtificialDuty(getduty(varid))) &&
+        isinteger(proj_cols_on_rep(rm_lp_primal_sol, getmodel(rm_lp_primal_sol)))
+end
+
+function update_sp_vars_reduced_costs!()
+    # update reduced costs
+    updatereducedcosts!(reform, red_costs_helper, smooth_dual_sol)
+
+    # update incumbent values of the constraints (TODO: for what ?)
+    master = getmaster(reform)
+    for (_, constr) in getconstrs(master)
+        setcurincval!(master, constr, 0.0)
+    end
+    for (constr_id, val) in smooth_dual_sol
+        setcurincval!(master, constr_id, val)
+    end
+    return
+end
+
+function solve_pricing_subproblem!()
+    input = OptimizationState(subprob)
+    return run!(pricing_prob_solve_alg, env, subprob, input)
+end
+
+function solve_pricing_subproblems!()
+    ## TODO: check time limit between each subproblem optimization.
+    return map(spform -> solve_pricing_subproblem!(), pricing_subprobs)
+end
+
+function add_columns_to_master!(master, subprob_optstates)
+
+end
+
+function compute_dual_bound!(subprob_optstates)
+
+end
+
+function after_iteration!()
+
+end
+
+function _assert_has_dual_lp_sol(rm_optstate)
+    lp_dual_sol = get_best_lp_dual_sol(rm_optstate)
+    if isnothing(lp_dual_sol)
+        err_msg = """
+        Something unexpected happened when retrieving the dual solution to the LP restricted master.
+        ======
+        Phase : $phase
+        Termination status of the solver after optimizing the master (should be OPTIMAL) : $(getterminationstatus(rm_optstate))
+        Number of dual solutions (should be at least 1) : $(length(get_lp_dual_sols(rm_optstate)))
+        ======
+        Please open an issue at https://github.com/atoptima/Coluna.jl/issues with an example that reproduces the bug.
+        """
+        error(err_msg)
+    end
+end
+
+function violates_essential_cuts!(master, rm_lp_primal_sol)
+    # TODO: concatenate with partial sol.
+    cutcb_input = CutCallbacksInput(rm_lp_primal_sol)
+    cutcb_output = run!(
+        CutCallbacks(call_robust_facultative=false),
+        env, master, cutcb_input
+    )
+    return cutcb_output.nb_cuts_added > 0
+end
+
+function colgen!(
+    algo::ColumnGeneration, env::Env, phase::Int, optstate::OptimizationState,
+    reform::Reformulation    
+)   
+    master = getmaster(reform)
+
+    run_colgen = true
+    tteration = 1
+    while run_colgen
+        before_iteration!()
+
+        # TODO: check time limit of Coluna
+        rm_optstate = solve_master!(
+            master, optstate, RestrictedMasterLP(), algo.restr_master_solve_alg, 
+            algo.restr_master_optimizer_id, env
+        )
+
+        # If the master is infeasible:
+        # - it should not happen in phase 1 or phase 3 thanks to artificial variables, so we
+        #   stop column generation
+        # - if it happens in phase 2 we restart phase 1
+        # === TODO ===
+
+        # If the master is unbounded
+        # - we stop column generation 
+
+        _assert_has_lp_dual_sol(rm_optstate)
+        set_lp_dual_sol!(optstate, get_best_lp_dual_sol(rm_optstate))
+
+        rm_lp_primal_sol = get_best_lp_primal_sol(rm_optstate)
+        if !isnothing(rm_lp_primal_bound)
+            set_lp_primal_sol!(optstate, rm_lp_primal_sol)
+            lp_primal_bound = get_best_lp_primal_bound(rm_optstate)  # + partial solution value  
+            set_lp_primal_bound!(optstate, lp_primal_bound)   
+            
+            if phase != 1
+                # We don't check integer feasibility of the solution in phase 1 because the goal of
+                # this phase is just to get rid of artificial variables.
+                if _isinteger(rm_lp_primal_sol) && isbetter(lp_primal_bound, get_ip_primal_bound(optstate))
+                    if violates_essential_cut!(master, rm_lp_primal_sol)
+                        
+                    else
+                        update_ip_primal_sol!(optstate, lp_primal_sol)
+                        red_costs_helper = ReducedCostsCalculationHelper(reform)
+                    end
+                end
+            end
+        end
+        
+        cleanup_columns!(algo, iteration, master)
+
+        # TODO: check time limit of Coluna
+        update_sp_vars_reduced_costs!()
+        sp_optstates = solve_pricing_subproblems!()
+
+        # TODO: check time limit of Coluna
+        add_columns_to_master!(master, sp_optstates)
+        compute_dual_bound!()
+
+        iteration += 1
+        after_iteration!()
+    end
+    
 end
