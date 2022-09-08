@@ -1038,14 +1038,12 @@ Returns an optimization state that contains at least a dual solution to the Danz
 restricted master problem.
 """
 function solve_master!(master, optstate, ::RestrictedMasterLP, master_solve_alg, master_optimizer_id, env)
-    rm_time = @elapsed begin
-        rm_input = OptimizationState(master, ip_primal_bound=get_ip_primal_bound(optstate))
-        rm_optstate = run!(master_solve_alg, env, master, rm_input, master_optimizer_id)
-    end
+    rm_input = OptimizationState(master, ip_primal_bound=get_ip_primal_bound(optstate))
+    rm_optstate = run!(master_solve_alg, env, master, rm_input, master_optimizer_id)
     return rm_optstate
 end
 
-function _isinteger(rm_lp_primal_sol)
+function _is_feasible_and_integer(rm_lp_primal_sol)
     return !contains(rm_lp_primal_sol, varid -> isanArtificialDuty(getduty(varid))) &&
         isinteger(proj_cols_on_rep(rm_lp_primal_sol, getmodel(rm_lp_primal_sol)))
 end
@@ -1118,6 +1116,7 @@ function colgen!(
     reform::Reformulation    
 )   
     master = getmaster(reform)
+    helpers = 
 
     run_colgen = true
     tteration = 1
@@ -1151,7 +1150,7 @@ function colgen!(
             if phase != 1
                 # We don't check integer feasibility of the solution in phase 1 because the goal of
                 # this phase is just to get rid of artificial variables.
-                if _isinteger(rm_lp_primal_sol) && isbetter(lp_primal_bound, get_ip_primal_bound(optstate))
+                if _is_feasible_and_integer(rm_lp_primal_sol) && isbetter(lp_primal_bound, get_ip_primal_bound(optstate))
                     if violates_essential_cut!(master, rm_lp_primal_sol)
                         
                     else
