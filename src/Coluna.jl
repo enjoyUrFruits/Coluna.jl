@@ -35,6 +35,7 @@ function __init__()
     # Read Coluna version from Project.toml file
     coluna_ver = VersionNumber(TOML.parsefile(joinpath(@__DIR__, "..", "Project.toml"))["version"])
     _COLUNA_VERSION[] = coluna_ver
+    @show "LOCAL VERSION"
 end
 
 version() = _COLUNA_VERSION[]

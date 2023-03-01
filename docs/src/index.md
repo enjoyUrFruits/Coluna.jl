@@ -1,11 +1,11 @@
 # Introduction
 
-!!! danger
+!!! Warning
     Coluna is under active development.
     Some features are undocumented because they are very experimental.
     Current users are expected to read the source code.
 
-!!! warning
+!!! Note
     We assume that readers are familiar with integer programming and exact optimization methods.
 
 

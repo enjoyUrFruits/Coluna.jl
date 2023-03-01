@@ -4,7 +4,7 @@ function set_glob_art_var(form::Formulation, is_pos::Bool, env::Env)
     cost *= getobjsense(form) == MinSense ? 1.0 : -1.0
     return setvar!(
         form, name, MasterArtVar;
-        cost = cost, lb = 0.0, ub = Inf, kind = Continuous
+        cost=cost, lb=0.0, ub=Inf, kind=Continuous
     )
 end
 
@@ -33,8 +33,8 @@ function instantiatemaster!(
     form = create_formulation!(
         env,
         MathProg.DwMaster();
-        parent_formulation = reform,
-        obj_sense = getobjsense(get_original_formulation(prob))
+        parent_formulation=reform,
+        obj_sense=getobjsense(get_original_formulation(prob))
     )
     setobjconst!(form, getobjconst(get_original_formulation(prob)))
     setmaster!(reform, form)
@@ -47,8 +47,8 @@ function instantiatemaster!(
     masterform = create_formulation!(
         env,
         MathProg.BendersMaster();
-        parent_formulation = reform,
-        obj_sense = getobjsense(get_original_formulation(prob))
+        parent_formulation=reform,
+        obj_sense=getobjsense(get_original_formulation(prob))
     )
     setmaster!(reform, masterform)
     return masterform
@@ -61,8 +61,8 @@ function instantiatesp!(
     spform = create_formulation!(
         env,
         MathProg.DwSp(nothing, nothing, nothing, Integ);
-        parent_formulation = masterform,
-        obj_sense = getobjsense(masterform)
+        parent_formulation=masterform,
+        obj_sense=getobjsense(masterform)
     )
     add_dw_pricing_sp!(reform, spform)
     return spform
@@ -75,8 +75,8 @@ function instantiatesp!(
     spform = create_formulation!(
         env,
         MathProg.BendersSp();
-        parent_formulation = masterform,
-        obj_sense = getobjsense(masterform)
+        parent_formulation=masterform,
+        obj_sense=getobjsense(masterform)
     )
     add_benders_sep_sp!(reform, spform)
     return spform
@@ -95,7 +95,7 @@ function instantiate_orig_vars!(
         formtype = BD.getformulation(ann)
         if formtype <: BD.Master
             for (_, var) in vars
-                clonevar!(origform, masterform, masterform, var, MasterPureVar, is_explicit = true)
+                clonevar!(origform, masterform, masterform, var, MasterPureVar, is_explicit=true)
             end
         end
     end
@@ -113,8 +113,8 @@ function instantiate_orig_constrs!(
     constrs = annotations.constrs_per_ann[mast_ann]
     for (_, constr) in constrs
         cloneconstr!(
-            origform, masterform, masterform, constr, MasterMixedConstr, 
-            loc_art_var_abs_cost = env.params.local_art_var_cost
+            origform, masterform, masterform, constr, MasterMixedConstr,
+            loc_art_var_abs_cost=env.params.local_art_var_cost
         ) # TODO distinguish Pure versus Mixed
     end
     # Cut generation callbacks
@@ -136,7 +136,7 @@ function create_side_vars_constrs!(
         setupvars = filter(v -> getduty(v.first) == DwSpSetupVar, getvars(spform))
         @assert length(setupvars) == 1
         setupvar = collect(values(setupvars))[1]
-        setuprepvar = clonevar!(origform, masterform, spform, setupvar, MasterRepPricingSetupVar, is_explicit = false)
+        setuprepvar = clonevar!(origform, masterform, spform, setupvar, MasterRepPricingSetupVar, is_explicit=false)
 
         # create convexity constraint & storing information about the convexity constraint
         # in the duty data of the formulation
@@ -144,17 +144,17 @@ function create_side_vars_constrs!(
         name = string("sp_lb_", spuid)
         lb_conv_constr = setconstr!(
             masterform, name, MasterConvexityConstr;
-            rhs = lb_mult, kind = Essential, sense = Greater, inc_val = 100.0, 
-            loc_art_var_abs_cost = env.params.local_art_var_cost
+            rhs=lb_mult, kind=Essential, sense=Greater, inc_val=100.0,
+            loc_art_var_abs_cost=env.params.local_art_var_cost
         )
         coefmatrix[getid(lb_conv_constr), getid(setuprepvar)] = 1.0
 
-        ub_mult =  Float64(BD.getuppermultiplicity(ann))
+        ub_mult = Float64(BD.getuppermultiplicity(ann))
         name = string("sp_ub_", spuid)
         ub_conv_constr = setconstr!(
-            masterform, name, MasterConvexityConstr; rhs = ub_mult,
-            kind = Essential, sense = Less, inc_val = 100.0, 
-            loc_art_var_abs_cost = env.params.local_art_var_cost
+            masterform, name, MasterConvexityConstr; rhs=ub_mult,
+            kind=Essential, sense=Less, inc_val=100.0,
+            loc_art_var_abs_cost=env.params.local_art_var_cost
         )
         coefmatrix[getid(ub_conv_constr), getid(setuprepvar)] = 1.0
 
@@ -194,17 +194,17 @@ function instantiate_orig_vars!(
     masterform = spform.parent_formulation
     for (varid, var) in vars
         # An original variable annotated in a subproblem is a DwSpPricingVar
-        clonevar!(origform, spform, spform, var, DwSpPricingVar, is_explicit = true)
-        
+        clonevar!(origform, spform, spform, var, DwSpPricingVar, is_explicit=true)
+
         if haskey(masterform, varid) && !is_representative(annotations, varid)
             error("""
                 Variable $(getname(masterform, varid)) is two subproblems but is not representative.
                 Please open an issue.
                 """)
         end
-        
+
         if !haskey(masterform, varid)
-            clonevar!(origform, masterform, spform, var, MasterRepPricingVar, is_explicit = false)
+            clonevar!(origform, masterform, spform, var, MasterRepPricingVar, is_explicit=false)
         end
     end
     return
@@ -233,8 +233,8 @@ function create_side_vars_constrs!(
 )
     name = "PricingSetupVar_sp_$(getuid(spform))"
     setvar!(
-        spform, name, DwSpSetupVar; cost = 0.0, lb = 1.0, ub = 1.0, kind = Integ,
-        is_explicit = true
+        spform, name, DwSpSetupVar; cost=0.0, lb=1.0, ub=1.0, kind=Integ,
+        is_explicit=true
     )
     return
 end
@@ -263,7 +263,7 @@ function instantiate_orig_vars!(
     !haskey(annotations.vars_per_ann, mast_ann) && return
     vars = annotations.vars_per_ann[mast_ann]
     for (_, var) in vars
-        clonevar!(origform, masterform, masterform, var, MasterPureVar, is_explicit = true)
+        clonevar!(origform, masterform, masterform, var, MasterPureVar, is_explicit=true)
     end
     return
 end
@@ -279,7 +279,7 @@ function instantiate_orig_constrs!(
     constrs = annotations.constrs_per_ann[mast_ann]
     for (_, constr) in constrs
         cloneconstr!(
-            origform, masterform, masterform, constr, MasterPureConstr, is_explicit = true
+            origform, masterform, masterform, constr, MasterPureConstr, is_explicit=true
         )
     end
     return
@@ -300,17 +300,17 @@ function create_side_vars_constrs!(
         name = "η[$(split(getname(spform, nu_var), "[")[end])"
         nu_id = VarId(
             getid(nu_var);
-            duty = MasterBendSecondStageCostVar,
-            assigned_form_uid = getuid(masterform)
+            duty=MasterBendSecondStageCostVar,
+            assigned_form_uid=getuid(masterform)
         )
         setvar!(
             masterform, name, MasterBendSecondStageCostVar;
-            cost = 1.0,
-            lb = getperenlb(spform, nu_var),
-            ub = getperenub(spform, nu_var),
-            kind = Continuous,
-            is_explicit = true,
-            id = nu_id
+            cost=1.0,
+            lb=getperenlb(spform, nu_var),
+            ub=getperenub(spform, nu_var),
+            kind=Continuous,
+            is_explicit=true,
+            id=nu_id
         )
     end
     return
@@ -327,7 +327,7 @@ function instantiate_orig_vars!(
     if haskey(annotations.vars_per_ann, sp_ann)
         vars = annotations.vars_per_ann[sp_ann]
         for (_, var) in vars
-            clonevar!(origform, spform, spform, var, BendSpSepVar, cost = 0.0)
+            clonevar!(origform, spform, spform, var, BendSpSepVar, cost=0.0)
         end
     end
     return
@@ -354,8 +354,8 @@ function instantiate_orig_constrs!(
     !haskey(annotations.constrs_per_ann, sp_ann) && return
     constrs = annotations.constrs_per_ann[sp_ann]
     for (_, constr) in constrs
-        duty, explicit  = _dutyexpofbendspconstr(constr, annotations, origform)
-        cloneconstr!(origform, spform, spform, constr, duty, is_explicit = explicit)
+        duty, explicit = _dutyexpofbendspconstr(constr, annotations, origform)
+        cloneconstr!(origform, spform, spform, constr, duty, is_explicit=explicit)
     end
     return
 end
@@ -380,27 +380,27 @@ function create_side_vars_constrs!(
                 name = string("μ⁺[", split(getname(origform, var), "[")[end], "]")
                 slack_pos_id = VarId(
                     varid,
-                    duty = BendSpPosSlackFirstStageVar,
-                    assigned_form_uid = getuid(masterform)
+                    duty=BendSpPosSlackFirstStageVar,
+                    assigned_form_uid=getuid(masterform)
                 )
                 slack_pos = setvar!(
                     spform, name, BendSpPosSlackFirstStageVar;
-                    cost = getcurcost(origform, var),
-                    lb = getcurlb(origform, var),
-                    ub = getcurub(origform, var),
-                    kind = Continuous,
-                    is_explicit = true,
-                    id = slack_pos_id
+                    cost=getcurcost(origform, var),
+                    lb=getcurlb(origform, var),
+                    ub=getcurub(origform, var),
+                    kind=Continuous,
+                    is_explicit=true,
+                    id=slack_pos_id
                 )
 
                 name = string("μ⁻[", split(getname(origform, var), "[")[end], "]")
                 slack_neg = setvar!(
                     spform, name, BendSpNegSlackFirstStageVar;
-                    cost = getcurcost(origform, var),
-                    lb = getcurlb(origform, var),
-                    ub = getcurub(origform, var),
-                    kind = Continuous,
-                    is_explicit = true
+                    cost=getcurcost(origform, var),
+                    lb=getcurlb(origform, var),
+                    ub=getcurub(origform, var),
+                    kind=Continuous,
+                    is_explicit=true
                 )
 
                 spform.duty_data.slack_to_first_stage[getid(slack_pos)] = varid
@@ -423,7 +423,7 @@ function create_side_vars_constrs!(
     for (varid, _) in getvars(spform)
         getduty(varid) == BendSpSepVar || continue
         orig_var = getvar(origform, varid)
-        cost =  getperencost(origform, orig_var)
+        cost = getperencost(origform, orig_var)
         if cost > 0
             global_costprofit_ub += cost * getcurub(origform, orig_var)
             global_costprofit_lb += cost * getcurlb(origform, orig_var)
@@ -442,27 +442,27 @@ function create_side_vars_constrs!(
         # Cost constraint
         nu_pos = setvar!(
             spform, "ν⁺[$sp_id]", BendSpSlackSecondStageCostVar;
-            cost = getobjsense(spform) == MinSense ? 1.0 : -1.0,
-            lb = global_costprofit_lb,
-            ub = global_costprofit_ub,
-            kind = Continuous,
-            is_explicit = true
+            cost=getobjsense(spform) == MinSense ? 1.0 : -1.0,
+            lb=global_costprofit_lb,
+            ub=global_costprofit_ub,
+            kind=Continuous,
+            is_explicit=true
         )
         setcurlb!(spform, nu_pos, 0.0)
         setcurub!(spform, nu_pos, Inf)
 
         cost = setconstr!(
             spform, "cost[$sp_id]", BendSpSecondStageCostConstr;
-            rhs = 0.0,
-            kind = Essential,
-            sense = getobjsense(spform) == MinSense ? Greater : Less,
-            is_explicit = true
+            rhs=0.0,
+            kind=Essential,
+            sense=getobjsense(spform) == MinSense ? Greater : Less,
+            is_explicit=true
         )
         spcoef[getid(cost), getid(nu_pos)] = 1.0
 
         for (varid, _) in getvars(spform)
             getduty(varid) == BendSpSepVar || continue
-            spcoef[getid(cost), varid] = - getperencost(origform, varid)
+            spcoef[getid(cost), varid] = -getperencost(origform, varid)
         end
     end
     return
@@ -502,7 +502,7 @@ function buildformulations!(
     masterform = instantiatemaster!(env, prob, reform, form_type, dec_type)
     store!(annotations, masterform, ann)
     origform = get_original_formulation(prob)
-     for (_, child) in BD.subproblems(node)
+    for (_, child) in BD.subproblems(node)
         buildformulations!(prob, reform, env, annotations, node, child)
     end
     assign_orig_vars_constrs!(masterform, origform, env, annotations, ann)
@@ -511,6 +511,9 @@ function buildformulations!(
     closefillmode!(getcoefmatrix(masterform))
     push_optimizer!.(Ref(masterform), getoptimizerbuilders(prob, ann))
     push_optimizer!.(Ref(origform), getoptimizerbuilders(prob, ann))
+
+    @show masterform
+
     return
 end
 
@@ -529,6 +532,8 @@ function buildformulations!(
     create_side_vars_constrs!(spform, origform, env, annotations)
     closefillmode!(getcoefmatrix(spform))
     push_optimizer!.(Ref(spform), getoptimizerbuilders(prob, ann))
+
+    @show spform
     return
 end
 
@@ -579,6 +584,7 @@ function reformulate!(prob::Problem, annotations::Annotations, env::Env)
     if getcoefmatrix(origform).matrix.fillmode
         closefillmode!(getcoefmatrix(origform))
     end
+    @show origform
 
     decomposition_tree = annotations.tree
     if decomposition_tree !== nothing
